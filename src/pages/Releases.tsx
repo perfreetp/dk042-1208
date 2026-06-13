@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Rocket,
   Plus,
@@ -22,6 +22,8 @@ import {
   ArrowRightLeft,
 } from 'lucide-react';
 import { useReleaseStore } from '../store/useReleaseStore';
+import { useIssueStore } from '../store/useIssueStore';
+import { useProjectStore } from '../store/useProjectStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime, relativeTime, cn, getEnvText } from '../utils';
 import type { Release, EnvironmentType, ReleaseStatus } from '../types';
@@ -35,11 +37,52 @@ const statusTabs: { key: 'all' | ReleaseStatus; label: string }[] = [
   { key: 'rollback', label: '已回滚' },
 ];
 
+const envOptions: { key: EnvironmentType; label: string }[] = [
+  { key: 'test', label: '测试环境' },
+  { key: 'staging', label: '预发环境' },
+  { key: 'production', label: '生产环境' },
+];
+
 export function Releases() {
-  const { releases, selectRelease, setShowDetailModal, showDetailModal, selectedRelease } =
-    useReleaseStore();
+  const {
+    releases,
+    selectRelease,
+    setShowDetailModal,
+    showDetailModal,
+    selectedRelease,
+    setShowCreateModal,
+    showCreateModal,
+    addRelease,
+    approveRelease,
+    rejectRelease,
+    rollbackRelease,
+  } = useReleaseStore();
+  const { issues } = useIssueStore();
+  const { projects } = useProjectStore();
+
   const [activeTab, setActiveTab] = useState<'all' | ReleaseStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [formData, setFormData] = useState({
+    title: '',
+    version: '',
+    projectId: '',
+    environment: 'test' as EnvironmentType,
+    description: '',
+    relatedIssues: [] as string[],
+  });
+
+  const [approvalComments, setApprovalComments] = useState('');
+  const [showApprovalInput, setShowApprovalInput] = useState<'approve' | 'reject' | null>(null);
+
+  useEffect(() => {
+    if (showDetailModal && selectedRelease) {
+      const updated = releases.find((r) => r.id === selectedRelease.id);
+      if (updated) {
+        selectRelease(updated);
+      }
+    }
+  }, [releases, selectedRelease?.id, showDetailModal, selectRelease]);
 
   const filteredReleases = releases.filter((release) => {
     if (activeTab !== 'all' && release.status !== activeTab) return false;
@@ -51,6 +94,67 @@ export function Releases() {
   const handleViewDetail = (release: Release) => {
     selectRelease(release);
     setShowDetailModal(true);
+  };
+
+  const handleCreateRelease = () => {
+    if (!formData.title || !formData.version || !formData.projectId) return;
+
+    const project = projects.find((p) => p.id === formData.projectId);
+
+    addRelease({
+      title: formData.title,
+      version: formData.version,
+      projectId: formData.projectId,
+      projectName: project?.name || '',
+      environment: formData.environment,
+      status: 'pending_approval',
+      applicant: '当前用户',
+      relatedIssues: formData.relatedIssues,
+      description: formData.description,
+    });
+
+    setFormData({
+      title: '',
+      version: '',
+      projectId: '',
+      environment: 'test',
+      description: '',
+      relatedIssues: [],
+    });
+    setShowCreateModal(false);
+  };
+
+  const handleApprove = () => {
+    if (!selectedRelease) return;
+    approveRelease(selectedRelease.id, approvalComments, '当前审批人');
+    setApprovalComments('');
+    setShowApprovalInput(null);
+  };
+
+  const handleReject = () => {
+    if (!selectedRelease) return;
+    rejectRelease(selectedRelease.id, approvalComments, '当前审批人');
+    setApprovalComments('');
+    setShowApprovalInput(null);
+  };
+
+  const handleRollback = () => {
+    if (!selectedRelease) return;
+    rollbackRelease(selectedRelease.id);
+  };
+
+  const toggleIssueSelection = (issueId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      relatedIssues: prev.relatedIssues.includes(issueId)
+        ? prev.relatedIssues.filter((id) => id !== issueId)
+        : [...prev.relatedIssues, issueId],
+    }));
+  };
+
+  const getIssueTitle = (issueId: string) => {
+    const issue = issues.find((i) => i.id === issueId);
+    return issue?.title || '未知问题';
   };
 
   const envColor = (env: EnvironmentType) => {
@@ -93,7 +197,10 @@ export function Releases() {
             />
           </div>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+        >
           <Plus className="w-4 h-4" />
           提交发布申请
         </button>
@@ -130,7 +237,12 @@ export function Releases() {
             </div>
 
             <div className="flex items-center gap-4 mb-4">
-              <span className={cn('px-2 py-1 rounded-md text-xs font-medium border', envColor(release.environment))}>
+              <span
+                className={cn(
+                  'px-2 py-1 rounded-md text-xs font-medium border',
+                  envColor(release.environment)
+                )}
+              >
                 {getEnvText(release.environment)}
               </span>
               <span className="text-xs text-slate-400 font-mono">{release.version}</span>
@@ -156,6 +268,149 @@ export function Releases() {
           </div>
         ))}
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowCreateModal(false)}
+          />
+          <div className="relative w-[500px] max-h-[85vh] bg-slate-900 rounded-xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Send className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold">提交发布申请</h3>
+                  <p className="text-sm text-slate-500">填写发布信息并提交审批</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  发布标题 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="请输入发布标题"
+                  className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    版本号 <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.version}
+                    onChange={(e) => setFormData({ ...formData, version: e.target.value })}
+                    placeholder="v1.0.0"
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    目标环境
+                  </label>
+                  <select
+                    value={formData.environment}
+                    onChange={(e) =>
+                      setFormData({ ...formData, environment: e.target.value as EnvironmentType })
+                    }
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                  >
+                    {envOptions.map((opt) => (
+                      <option key={opt.key} value={opt.key}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  所属项目 <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={formData.projectId}
+                  onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                  className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                >
+                  <option value="">请选择项目</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">发布描述</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="请描述本次发布的内容..."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">关联问题</label>
+                <div className="max-h-32 overflow-y-auto space-y-1.5 bg-slate-800/30 rounded-lg p-2">
+                  {issues.map((issue) => (
+                    <label
+                      key={issue.id}
+                      className="flex items-center gap-2 p-2 rounded-md hover:bg-slate-700/50 cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData.relatedIssues.includes(issue.id)}
+                        onChange={() => toggleIssueSelection(issue.id)}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                      />
+                      <span className="text-xs font-mono text-slate-500">{issue.id}</span>
+                      <span className="text-sm text-slate-300 truncate">{issue.title}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateRelease}
+                disabled={!formData.title || !formData.version || !formData.projectId}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Send className="w-4 h-4" />
+                提交申请
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDetailModal && selectedRelease && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -185,7 +440,12 @@ export function Releases() {
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               <div className="flex items-center gap-4">
                 <StatusBadge status={selectedRelease.status} />
-                <span className={cn('px-2.5 py-1 rounded-md text-sm font-medium border', envColor(selectedRelease.environment))}>
+                <span
+                  className={cn(
+                    'px-2.5 py-1 rounded-md text-sm font-medium border',
+                    envColor(selectedRelease.environment)
+                  )}
+                >
                   {getEnvText(selectedRelease.environment)}
                 </span>
                 <span className="text-sm text-slate-400 font-mono">{selectedRelease.version}</span>
@@ -239,9 +499,7 @@ export function Releases() {
                     <div
                       className={cn(
                         'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5',
-                        selectedRelease.approver
-                          ? 'bg-emerald-500/20'
-                          : 'bg-slate-700/50'
+                        selectedRelease.approver ? 'bg-emerald-500/20' : 'bg-slate-700/50'
                       )}
                     >
                       {selectedRelease.approver ? (
@@ -321,9 +579,12 @@ export function Releases() {
                     >
                       <GitBranch className="w-4 h-4 text-blue-400" />
                       <span className="text-sm text-slate-300 font-mono text-xs">{issueId}</span>
-                      <span className="text-sm text-slate-400">需求标题...</span>
+                      <span className="text-sm text-slate-200">{getIssueTitle(issueId)}</span>
                     </div>
                   ))}
+                  {selectedRelease.relatedIssues.length === 0 && (
+                    <p className="text-sm text-slate-500">暂无关联问题</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -331,24 +592,67 @@ export function Releases() {
             <div className="p-4 border-t border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {selectedRelease.status === 'completed' && (
-                  <button className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 text-sm font-medium rounded-lg transition-colors">
+                  <button
+                    onClick={handleRollback}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 text-sm font-medium rounded-lg transition-colors"
+                  >
                     <RotateCcw className="w-4 h-4" />
                     回滚
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {selectedRelease.status === 'pending_approval' && (
+              <div className="flex items-center gap-2 flex-1 justify-end">
+                {selectedRelease.status === 'pending_approval' && !showApprovalInput && (
                   <>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm font-medium rounded-lg transition-colors">
+                    <button
+                      onClick={() => setShowApprovalInput('reject')}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm font-medium rounded-lg transition-colors"
+                    >
                       <ThumbsDown className="w-4 h-4" />
                       驳回
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors">
+                    <button
+                      onClick={() => setShowApprovalInput('approve')}
+                      className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
                       <ThumbsUp className="w-4 h-4" />
                       批准
                     </button>
                   </>
+                )}
+                {showApprovalInput && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="text"
+                      value={approvalComments}
+                      onChange={(e) => setApprovalComments(e.target.value)}
+                      placeholder={
+                        showApprovalInput === 'approve' ? '请输入批准意见...' : '请输入驳回原因...'
+                      }
+                      className="flex-1 h-8 px-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        setShowApprovalInput(null);
+                        setApprovalComments('');
+                      }}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm rounded-lg transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={showApprovalInput === 'approve' ? handleApprove : handleReject}
+                      className={cn(
+                        'px-4 py-1.5 text-white text-sm font-medium rounded-lg transition-colors',
+                        showApprovalInput === 'approve'
+                          ? 'bg-emerald-500 hover:bg-emerald-600'
+                          : 'bg-red-500 hover:bg-red-600'
+                      )}
+                    >
+                      确认
+                    </button>
+                  </div>
                 )}
                 {selectedRelease.status === 'approved' && (
                   <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Bug,
   Plus,
@@ -20,8 +20,10 @@ import {
   CircleDot,
   Circle,
   Loader2,
+  ChevronDown,
 } from 'lucide-react';
 import { useIssueStore } from '../store/useIssueStore';
+import { useProjectStore } from '../store/useProjectStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime, relativeTime, cn, getPriorityText, getIssueTypeText } from '../utils';
 import type { Issue, IssueType, IssueStatus, Priority } from '../types';
@@ -49,24 +51,55 @@ const priorityOptions: { key: 'all' | Priority; label: string; color: string }[]
   { key: 'critical', label: '紧急', color: 'text-red-400' },
 ];
 
+const issueStatusList: { key: IssueStatus; label: string }[] = [
+  { key: 'backlog', label: '待开始' },
+  { key: 'in_progress', label: '开发中' },
+  { key: 'testing', label: '测试中' },
+  { key: 'done', label: '已完成' },
+  { key: 'closed', label: '已关闭' },
+];
+
 export function Issues() {
   const {
     issues,
-    filterType,
     filterStatus,
     searchQuery,
     selectedIssue,
     showDetailModal,
-    setFilterType,
+    showCreateModal,
     setFilterStatus,
     setSearchQuery,
     selectIssue,
     setShowDetailModal,
-    getFilteredIssues,
+    setShowCreateModal,
+    addIssue,
+    updateIssueStatus,
   } = useIssueStore();
+  const { projects } = useProjectStore();
 
   const [activeTab, setActiveTab] = useState<'all' | IssueType>('all');
   const [filterPriority, setFilterPriority] = useState<'all' | Priority>('all');
+
+  const [formData, setFormData] = useState({
+    title: '',
+    type: 'feature' as IssueType,
+    priority: 'medium' as Priority,
+    projectId: '',
+    description: '',
+    branchName: '',
+    assignee: '',
+  });
+
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+  useEffect(() => {
+    if (showDetailModal && selectedIssue) {
+      const updated = issues.find((i) => i.id === selectedIssue.id);
+      if (updated) {
+        selectIssue(updated);
+      }
+    }
+  }, [issues, selectedIssue?.id, showDetailModal, selectIssue]);
 
   const filteredIssues = issues.filter((issue) => {
     if (activeTab !== 'all' && issue.type !== activeTab) return false;
@@ -80,6 +113,43 @@ export function Issues() {
   const handleViewDetail = (issue: Issue) => {
     selectIssue(issue);
     setShowDetailModal(true);
+  };
+
+  const handleCreateIssue = () => {
+    if (!formData.title || !formData.projectId) return;
+
+    const project = projects.find((p) => p.id === formData.projectId);
+
+    addIssue({
+      title: formData.title,
+      type: formData.type,
+      status: 'backlog',
+      priority: formData.priority,
+      projectId: formData.projectId,
+      projectName: project?.name || '',
+      assignee: formData.assignee || '待分配',
+      creator: '当前用户',
+      branchName: formData.branchName || undefined,
+      description: formData.description,
+      labels: [],
+    });
+
+    setFormData({
+      title: '',
+      type: 'feature',
+      priority: 'medium',
+      projectId: '',
+      description: '',
+      branchName: '',
+      assignee: '',
+    });
+    setShowCreateModal(false);
+  };
+
+  const handleStatusChange = (status: IssueStatus) => {
+    if (!selectedIssue) return;
+    updateIssueStatus(selectedIssue.id, status);
+    setShowStatusDropdown(false);
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -194,7 +264,10 @@ export function Issues() {
               ))}
             </select>
 
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+            >
               <Plus className="w-4 h-4" />
               新建问题
             </button>
@@ -312,6 +385,173 @@ export function Issues() {
           </div>
         )}
       </div>
+
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowCreateModal(false)}
+          />
+          <div className="relative w-[520px] max-h-[85vh] bg-slate-900 rounded-xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Plus className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold">新建问题</h3>
+                  <p className="text-sm text-slate-500">创建新的需求或缺陷</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  问题标题 <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="请输入问题标题"
+                  className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    问题类型
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setFormData({ ...formData, type: 'feature' })}
+                      className={cn(
+                        'flex-1 h-9 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border',
+                        formData.type === 'feature'
+                          ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                          : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:text-white'
+                      )}
+                    >
+                      <GitBranch className="w-4 h-4" />
+                      需求
+                    </button>
+                    <button
+                      onClick={() => setFormData({ ...formData, type: 'bug' })}
+                      className={cn(
+                        'flex-1 h-9 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 border',
+                        formData.type === 'bug'
+                          ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                          : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:text-white'
+                      )}
+                    >
+                      <Bug className="w-4 h-4" />
+                      缺陷
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    优先级
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) =>
+                      setFormData({ ...formData, priority: e.target.value as Priority })
+                    }
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                  >
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                    <option value="critical">紧急</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  所属项目 <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={formData.projectId}
+                  onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                  className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                >
+                  <option value="">请选择项目</option>
+                  {projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    负责人
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.assignee}
+                    onChange={(e) => setFormData({ ...formData, assignee: e.target.value })}
+                    placeholder="负责人姓名"
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    关联分支
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.branchName}
+                    onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                    placeholder="feature/xxx"
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">问题描述</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="请详细描述问题内容..."
+                  rows={4}
+                  className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateIssue}
+                disabled={!formData.title || !formData.projectId}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                创建问题
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDetailModal && selectedIssue && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -446,10 +686,33 @@ export function Issues() {
                   删除
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">
+              <div className="relative">
+                <button
+                  onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+                >
                   更改状态
+                  <ChevronDown className="w-4 h-4" />
                 </button>
+                {showStatusDropdown && (
+                  <div className="absolute bottom-full right-0 mb-2 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-10">
+                    {issueStatusList.map((status) => (
+                      <button
+                        key={status.key}
+                        onClick={() => handleStatusChange(status.key)}
+                        className={cn(
+                          'w-full px-4 py-2 text-left text-sm transition-colors flex items-center gap-2',
+                          selectedIssue.status === status.key
+                            ? 'bg-blue-500/20 text-blue-400'
+                            : 'text-slate-300 hover:bg-slate-700'
+                        )}
+                      >
+                        {getStatusIcon(status.key)}
+                        {status.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Server,
   Cpu,
@@ -17,14 +17,80 @@ import {
   RefreshCw,
   Layers,
   MapPin,
+  X,
+  Save,
 } from 'lucide-react';
-import { environments } from '../data/mockData';
+import { useEnvironmentStore } from '../store/useEnvironmentStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatDateTime, relativeTime, cn, getEnvText } from '../utils';
-import type { Environment, EnvironmentType } from '../types';
+import type { Environment, EnvironmentType, EnvStatus } from '../types';
 
 export function Environments() {
-  const [selectedEnv, setSelectedEnv] = useState<Environment | null>(null);
+  const {
+    environments,
+    selectedEnv,
+    showEditModal,
+    editingEnv,
+    setSelectedEnv,
+    setShowEditModal,
+    setEditingEnv,
+    updateEnvironment,
+  } = useEnvironmentStore();
+
+  const [editForm, setEditForm] = useState({
+    name: '',
+    currentVersion: '',
+    instances: 0,
+    region: '',
+    cpuUsage: 0,
+    memoryUsage: 0,
+    status: 'healthy' as EnvStatus,
+  });
+
+  useEffect(() => {
+    if (editingEnv) {
+      setEditForm({
+        name: editingEnv.name,
+        currentVersion: editingEnv.currentVersion,
+        instances: editingEnv.instances,
+        region: editingEnv.region,
+        cpuUsage: editingEnv.cpuUsage,
+        memoryUsage: editingEnv.memoryUsage,
+        status: editingEnv.status,
+      });
+    }
+  }, [editingEnv]);
+
+  useEffect(() => {
+    if (selectedEnv) {
+      const updated = environments.find((e) => e.id === selectedEnv.id);
+      if (updated) {
+        setSelectedEnv(updated);
+      }
+    }
+  }, [environments, selectedEnv?.id, setSelectedEnv]);
+
+  const handleEditClick = (env: Environment) => {
+    setEditingEnv(env);
+    setShowEditModal(true);
+  };
+
+  const handleSave = () => {
+    if (!editingEnv) return;
+
+    updateEnvironment(editingEnv.id, {
+      name: editForm.name,
+      currentVersion: editForm.currentVersion,
+      instances: editForm.instances,
+      region: editForm.region,
+      cpuUsage: editForm.cpuUsage,
+      memoryUsage: editForm.memoryUsage,
+      status: editForm.status,
+    });
+
+    setShowEditModal(false);
+    setEditingEnv(null);
+  };
 
   const getEnvGradient = (type: EnvironmentType) => {
     const gradients: Record<EnvironmentType, string> = {
@@ -54,6 +120,24 @@ export function Environments() {
     if (usage >= 80) return 'bg-red-500';
     if (usage >= 60) return 'bg-amber-500';
     return 'bg-emerald-500';
+  };
+
+  const getDomain = (type: EnvironmentType) => {
+    const domains: Record<EnvironmentType, string> = {
+      test: 'test.example.com',
+      staging: 'staging.example.com',
+      production: 'www.example.com',
+    };
+    return domains[type];
+  };
+
+  const getQps = (type: EnvironmentType) => {
+    const qps: Record<EnvironmentType, string> = {
+      test: '500',
+      staging: '2.3k',
+      production: '12.5k',
+    };
+    return qps[type];
   };
 
   return (
@@ -149,7 +233,10 @@ export function Environments() {
                     </div>
                     <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className={cn('h-full rounded-full transition-all duration-500', getUsageBarColor(env.cpuUsage))}
+                        className={cn(
+                          'h-full rounded-full transition-all duration-500',
+                          getUsageBarColor(env.cpuUsage)
+                        )}
                         style={{ width: `${env.cpuUsage}%` }}
                       />
                     </div>
@@ -166,7 +253,10 @@ export function Environments() {
                     </div>
                     <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div
-                        className={cn('h-full rounded-full transition-all duration-500', getUsageBarColor(env.memoryUsage))}
+                        className={cn(
+                          'h-full rounded-full transition-all duration-500',
+                          getUsageBarColor(env.memoryUsage)
+                        )}
                         style={{ width: `${env.memoryUsage}%` }}
                       />
                     </div>
@@ -228,11 +318,17 @@ export function Environments() {
             <div className="flex items-center gap-3">
               <Settings className="w-5 h-5 text-cyan-400" />
               <div>
-                <h3 className="text-base font-semibold text-white">{selectedEnv.name} - 详细配置</h3>
+                <h3 className="text-base font-semibold text-white">
+                  {selectedEnv.name} - 详细配置
+                </h3>
                 <p className="text-xs text-slate-500">环境配置与参数</p>
               </div>
             </div>
-            <button className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sm text-slate-300 rounded-lg transition-colors">
+            <button
+              onClick={() => handleEditClick(selectedEnv)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-sm rounded-lg transition-colors"
+            >
+              <Settings className="w-4 h-4" />
               编辑配置
             </button>
           </div>
@@ -251,7 +347,9 @@ export function Environments() {
                 <Globe className="w-4 h-4 text-emerald-400" />
                 <span className="text-xs text-slate-400">域名</span>
               </div>
-              <p className="text-sm text-white font-mono text-xs">{selectedEnv.type === 'test' ? 'test.example.com' : selectedEnv.type === 'staging' ? 'staging.example.com' : 'www.example.com'}</p>
+              <p className="text-sm text-white font-mono text-xs">
+                {getDomain(selectedEnv.type)}
+              </p>
               <p className="text-xs text-slate-500">HTTPS</p>
             </div>
             <div className="bg-slate-800/50 rounded-lg p-4">
@@ -267,10 +365,166 @@ export function Environments() {
                 <ArrowUpRight className="w-4 h-4 text-rose-400" />
                 <span className="text-xs text-slate-400">QPS</span>
               </div>
-              <p className="text-sm text-white font-medium">
-                {selectedEnv.type === 'production' ? '12.5k' : selectedEnv.type === 'staging' ? '2.3k' : '500'}
-              </p>
+              <p className="text-sm text-white font-medium">{getQps(selectedEnv.type)}</p>
               <p className="text-xs text-slate-500">峰值</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingEnv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setShowEditModal(false);
+              setEditingEnv(null);
+            }}
+          />
+          <div className="relative w-[500px] max-h-[85vh] bg-slate-900 rounded-xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                  <Settings className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold">编辑环境配置</h3>
+                  <p className="text-sm text-slate-500">{editingEnv.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingEnv(null);
+                }}
+                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  环境名称
+                </label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    当前版本
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.currentVersion}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, currentVersion: e.target.value })
+                    }
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    实例数量
+                  </label>
+                  <input
+                    type="number"
+                    value={editForm.instances}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, instances: parseInt(e.target.value) || 0 })
+                    }
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  部署区域
+                </label>
+                <input
+                  type="text"
+                  value={editForm.region}
+                  onChange={(e) => setEditForm({ ...editForm, region: e.target.value })}
+                  className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    CPU 使用率 (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editForm.cpuUsage}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, cpuUsage: parseInt(e.target.value) || 0 })
+                    }
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                    内存使用率 (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editForm.memoryUsage}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, memoryUsage: parseInt(e.target.value) || 0 })
+                    }
+                    className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  环境状态
+                </label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, status: e.target.value as EnvStatus })
+                  }
+                  className="w-full h-9 px-3 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+                >
+                  <option value="healthy">健康</option>
+                  <option value="warning">警告</option>
+                  <option value="error">异常</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-800 flex items-center justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingEnv(null);
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                保存配置
+              </button>
             </div>
           </div>
         </div>
