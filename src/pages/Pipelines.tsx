@@ -107,17 +107,21 @@ export function Pipelines() {
 
   useEffect(() => {
     if (editingPipeline) {
-      const buildSteps = editingPipeline.stages[0]?.steps.map((s, i) => ({
+      const buildStage = editingPipeline.stages.find((s) => s.name === '构建阶段') || editingPipeline.stages[0];
+      const testStage = editingPipeline.stages.find((s) => s.name === '测试阶段') || editingPipeline.stages[1];
+      const deployStage = editingPipeline.stages.find((s) => s.name === '发布阶段') || editingPipeline.stages[2];
+
+      const buildSteps = buildStage?.steps.map((s, i) => ({
         id: `b${i}`,
         name: s.name,
         enabled: true,
       })) || defaultBuildSteps;
-      const testSteps = editingPipeline.stages[1]?.steps.map((s, i) => ({
+      const testSteps = testStage?.steps.map((s, i) => ({
         id: `t${i}`,
         name: s.name,
         enabled: true,
       })) || defaultTestSteps;
-      const deploySteps = editingPipeline.stages[2]?.steps.map((s, i) => ({
+      const deploySteps = deployStage?.steps.map((s, i) => ({
         id: `d${i}`,
         name: s.name,
         enabled: true,
@@ -129,9 +133,9 @@ export function Pipelines() {
         triggerType: editingPipeline.triggerType,
         branch: editingPipeline.branch,
         scheduleCron: '0 0 * * *',
-        buildStage: { enabled: true, steps: buildSteps },
-        testStage: { enabled: true, steps: testSteps },
-        deployStage: { enabled: true, steps: deploySteps },
+        buildStage: { enabled: buildStage?.enabled ?? true, steps: buildSteps },
+        testStage: { enabled: testStage?.enabled ?? true, steps: testSteps },
+        deployStage: { enabled: deployStage?.enabled ?? true, steps: deploySteps },
       });
     } else {
       setFormData(initialForm);
@@ -479,7 +483,7 @@ export function Pipelines() {
               </div>
 
               <div className="mt-4 flex items-center gap-4">
-                {pipeline.stages.map((stage, idx) => (
+                {pipeline.stages.filter(s => s.enabled).map((stage, idx, filtered) => (
                   <div key={stage.id} className="flex items-center">
                     <div
                       className={cn(
@@ -498,7 +502,7 @@ export function Pipelines() {
                       {stage.status === 'pending' && <Circle className="w-3 h-3" />}
                       {stage.name}
                     </div>
-                    {idx < pipeline.stages.length - 1 && (
+                    {idx < filtered.length - 1 && (
                       <div className="w-6 h-px bg-slate-700 mx-1" />
                     )}
                   </div>
@@ -548,7 +552,7 @@ export function Pipelines() {
 
           <div className="flex-1 overflow-y-auto p-4">
             <div className="space-y-1">
-              {selectedPipeline.stages.map((stage) => (
+              {selectedPipeline.stages.filter(s => s.enabled).map((stage) => (
                 <div key={stage.id} className="mb-4">
                   <div className="flex items-center gap-2 px-3 py-2 bg-slate-800/50 rounded-lg">
                     {stage.status === 'success' && (

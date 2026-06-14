@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Pipeline, PipelineStage, PipelineStep, TriggerType } from '../types';
 import { pipelines as mockPipelines } from '../data/mockData';
+import { saveToStorage, loadFromStorage } from '../lib/persist';
 
 interface StageConfig {
   name: string;
@@ -61,6 +62,7 @@ const createDefaultStages = (): PipelineStage[] => {
       name: '构建阶段',
       status: 'pending' as const,
       duration: 0,
+      enabled: true,
       steps: createSteps('build', 3),
     },
     {
@@ -68,6 +70,7 @@ const createDefaultStages = (): PipelineStage[] => {
       name: '测试阶段',
       status: 'pending' as const,
       duration: 0,
+      enabled: true,
       steps: createSteps('test', 3),
     },
     {
@@ -75,20 +78,80 @@ const createDefaultStages = (): PipelineStage[] => {
       name: '发布阶段',
       status: 'pending' as const,
       duration: 0,
+      enabled: true,
       steps: createSteps('deploy', 2),
     },
   ];
 };
 
+interface FormStep {
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+interface FormStageConfig {
+  enabled: boolean;
+  steps: FormStep[];
+}
+
+interface FormDataForBuild {
+  buildStage: FormStageConfig;
+  testStage: FormStageConfig;
+  deployStage: FormStageConfig;
+}
+
+const buildStagesFromForm = (formData: FormDataForBuild): PipelineStage[] => {
+  const stages: PipelineStage[] = [];
+  const now = Date.now();
+
+  const stageConfigs: Array<{ key: 'buildStage' | 'testStage' | 'deployStage'; name: string; idx: number }> = [
+    { key: 'buildStage', name: '构建阶段', idx: 1 },
+    { key: 'testStage', name: '测试阶段', idx: 2 },
+    { key: 'deployStage', name: '发布阶段', idx: 3 },
+  ];
+
+  stageConfigs.forEach(({ key, name, idx }) => {
+    const stageConfig = formData[key];
+    if (stageConfig && stageConfig.enabled) {
+      const enabledSteps = stageConfig.steps
+        .filter((step) => step.enabled)
+        .map((step, stepIdx) => ({
+          id: `step-${now}-${idx}-${stepIdx}`,
+          name: step.name,
+          status: 'pending' as const,
+          logs: [],
+          duration: 0,
+        }));
+
+      stages.push({
+        id: `stage-${now}-${idx}`,
+        name,
+        status: 'pending' as const,
+        duration: 0,
+        enabled: true,
+        steps: enabledSteps,
+      });
+    }
+  });
+
+  return stages;
+};
+
+const initialPipelines = loadFromStorage<Pipeline[]>('pipelines', mockPipelines);
+
 export const usePipelineStore = create<PipelineState>((set, get) => ({
-  pipelines: mockPipelines,
+  pipelines: initialPipelines,
   selectedPipeline: null,
   selectedStep: null,
   isLogsOpen: false,
   showConfigModal: false,
   editingPipeline: null,
 
-  setPipelines: (pipelines) => set({ pipelines }),
+  setPipelines: (pipelines) => {
+    saveToStorage('pipelines', pipelines);
+    set({ pipelines });
+  },
 
   selectPipeline: (id) => {
     if (!id) {
@@ -105,8 +168,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     set((state) => ({ isLogsOpen: open !== undefined ? open : !state.isLogsOpen })),
 
   triggerPipeline: (id) => {
-    set((state) => ({
-      pipelines: state.pipelines.map((p) =>
+    set((state) => {
+      const newPipelines: Pipeline[] = state.pipelines.map((p) =>
         p.id === id
           ? {
               ...p,
@@ -123,14 +186,18 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
               })),
             }
           : p
-      ),
-    }));
+      );
+      saveToStorage('pipelines', newPipelines);
+      return { pipelines: newPipelines };
+    });
   },
 
   updatePipelineStatus: (id, status) => {
-    set((state) => ({
-      pipelines: state.pipelines.map((p) => (p.id === id ? { ...p, status } : p)),
-    }));
+    set((state) => {
+      const newPipelines = state.pipelines.map((p) => (p.id === id ? { ...p, status } : p));
+      saveToStorage('pipelines', newPipelines);
+      return { pipelines: newPipelines };
+    });
   },
 
   setShowConfigModal: (show) => set({ showConfigModal: show }),
@@ -149,18 +216,22 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       branch: data.branch,
       commitMessage: '初始配置',
       commitUser: '当前用户',
-      stages: createDefaultStages(),
+      stages: buildStagesFromForm(data as unknown as FormDataForBuild),
     };
-    set((state) => ({
-      pipelines: [newPipeline, ...state.pipelines],
-      showConfigModal: false,
-      editingPipeline: null,
-    }));
+    set((state) => {
+      const newPipelines = [newPipeline, ...state.pipelines];
+      saveToStorage('pipelines', newPipelines);
+      return {
+        pipelines: newPipelines,
+        showConfigModal: false,
+        editingPipeline: null,
+      };
+    });
   },
 
   updatePipeline: (id, data) => {
-    set((state) => ({
-      pipelines: state.pipelines.map((p) =>
+    set((state) => {
+      const newPipelines = state.pipelines.map((p) =>
         p.id === id
           ? {
               ...p,
@@ -169,11 +240,16 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
               projectName: data.projectName,
               triggerType: data.triggerType,
               branch: data.branch,
+              stages: buildStagesFromForm(data as unknown as FormDataForBuild),
             }
           : p
-      ),
-      showConfigModal: false,
-      editingPipeline: null,
-    }));
+      );
+      saveToStorage('pipelines', newPipelines);
+      return {
+        pipelines: newPipelines,
+        showConfigModal: false,
+        editingPipeline: null,
+      };
+    });
   },
 }));

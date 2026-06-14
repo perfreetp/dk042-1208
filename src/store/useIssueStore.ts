@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Issue } from '../types';
 import { issues as mockIssues } from '../data/mockData';
+import { saveToStorage, loadFromStorage } from '../lib/persist';
 
 interface IssueState {
   issues: Issue[];
@@ -22,8 +23,10 @@ interface IssueState {
   getFilteredIssues: () => Issue[];
 }
 
+const initialIssues = loadFromStorage<Issue[]>('issues', mockIssues);
+
 export const useIssueStore = create<IssueState>((set, get) => ({
-  issues: mockIssues,
+  issues: initialIssues,
   filterType: 'all',
   filterStatus: 'all',
   searchQuery: '',
@@ -31,7 +34,10 @@ export const useIssueStore = create<IssueState>((set, get) => ({
   showDetailModal: false,
   showCreateModal: false,
 
-  setIssues: (issues) => set({ issues }),
+  setIssues: (issues) => {
+    saveToStorage('issues', issues);
+    set({ issues });
+  },
 
   setFilterType: (type) => set({ filterType: type }),
 
@@ -53,15 +59,21 @@ export const useIssueStore = create<IssueState>((set, get) => ({
       createdAt: now,
       updatedAt: now,
     };
-    set((state) => ({ issues: [newIssue, ...state.issues] }));
+    set((state) => {
+      const newIssues = [newIssue, ...state.issues];
+      saveToStorage('issues', newIssues);
+      return { issues: newIssues };
+    });
   },
 
   updateIssueStatus: (id, status) => {
-    set((state) => ({
-      issues: state.issues.map((i) =>
+    set((state) => {
+      const newIssues = state.issues.map((i) =>
         i.id === id ? { ...i, status, updatedAt: new Date().toISOString() } : i
-      ),
-    }));
+      );
+      saveToStorage('issues', newIssues);
+      return { issues: newIssues };
+    });
   },
 
   getFilteredIssues: () => {

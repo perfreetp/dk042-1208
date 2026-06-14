@@ -36,12 +36,40 @@ import {
   AreaChart,
   Area,
 } from 'recharts';
+import { useProjectStore } from '../store/useProjectStore';
+import { usePipelineStore } from '../store/usePipelineStore';
+import { useReleaseStore } from '../store/useReleaseStore';
+import { useIssueStore } from '../store/useIssueStore';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#8B5CF6'];
 
 export function Metrics() {
   const [activeTab, setActiveTab] = useState<'weekly' | 'monthly'>('weekly');
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+
+  const { projects } = useProjectStore();
+  const { pipelines } = usePipelineStore();
+  const { releases } = useReleaseStore();
+  const { issues } = useIssueStore();
+
+  const avgDeliveryCycle = 5;
+
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const weeklyReleases = releases.filter(
+    (release) => new Date(release.createdAt) > sevenDaysAgo
+  ).length;
+
+  const successfulReleases = releases.filter(
+    (release) => release.status === 'completed' || release.status === 'approved'
+  ).length;
+  const successRate = releases.length > 0
+    ? Math.round((successfulReleases / releases.length) * 100)
+    : 100;
+
+  const failedCount = releases.filter(
+    (release) => release.status === 'rejected'
+  ).length;
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -75,7 +103,7 @@ export function Metrics() {
             </div>
           </div>
           <p className="text-3xl font-bold text-white">
-            {metricsData.deliveryCycle.average}
+            {avgDeliveryCycle}
             <span className="text-base font-normal text-slate-500 ml-1">天</span>
           </p>
           <div className="flex items-center gap-1 mt-2 text-emerald-400 text-xs">
@@ -92,7 +120,7 @@ export function Metrics() {
             </div>
           </div>
           <p className="text-3xl font-bold text-white">
-            {metricsData.releaseFrequency.weekly[4].count}
+            {weeklyReleases}
             <span className="text-base font-normal text-slate-500 ml-1">次/周</span>
           </p>
           <div className="flex items-center gap-1 mt-2 text-emerald-400 text-xs">
@@ -109,11 +137,7 @@ export function Metrics() {
             </div>
           </div>
           <p className="text-3xl font-bold text-white">
-            {Math.round(
-              (metricsData.releaseFrequency.weekly[4].success /
-                metricsData.releaseFrequency.weekly[4].count) *
-                100
-            )}
+            {successRate}
             <span className="text-base font-normal text-slate-500 ml-1">%</span>
           </p>
           <div className="flex items-center gap-1 mt-2 text-emerald-400 text-xs">
@@ -130,7 +154,7 @@ export function Metrics() {
             </div>
           </div>
           <p className="text-3xl font-bold text-white">
-            {metricsData.failureReasons.reduce((acc, r) => acc + r.count, 0)}
+            {failedCount}
             <span className="text-base font-normal text-slate-500 ml-1">次</span>
           </p>
           <div className="flex items-center gap-1 mt-2 text-rose-400 text-xs">

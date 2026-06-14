@@ -160,19 +160,23 @@ export function Dashboard() {
             {activeProjects.slice(0, 4).map((project) => (
               <div
                 key={project.id}
+                onClick={() => navigate(`/projects/${project.id}`)}
                 className="p-4 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-blue-500/30 hover:bg-slate-800 transition-all cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500/30 to-cyan-500/30 flex items-center justify-center">
                     <Boxes className="w-5 h-5 text-blue-400" />
                   </div>
-                  <button className="p-1 rounded hover:bg-slate-700 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1 rounded hover:bg-slate-700 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
                     <MoreHorizontal className="w-4 h-4" />
                   </button>
                 </div>
                 <h4 className="text-white font-medium mb-1">{project.name}</h4>
                 <p className="text-xs text-slate-500 mb-3 line-clamp-2">{project.description}</p>
-                <div className="flex items-center justify-between text-xs text-slate-500">
+                <div className="flex items-center justify-between text-xs text-slate-500 mb-3">
                   <div className="flex items-center gap-1.5">
                     <Users className="w-3 h-3" />
                     <span>{project.team}</span>
@@ -181,6 +185,11 @@ export function Dashboard() {
                     <Calendar className="w-3 h-3" />
                     <span>{formatDate(project.createdAt)}</span>
                   </div>
+                </div>
+                <div className="flex justify-end">
+                  <span className="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-0.5 group-hover:gap-1 transition-all">
+                    查看详情 <ChevronRight className="w-3 h-3" />
+                  </span>
                 </div>
               </div>
             ))}

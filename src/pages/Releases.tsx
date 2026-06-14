@@ -56,6 +56,8 @@ export function Releases() {
     approveRelease,
     rejectRelease,
     rollbackRelease,
+    deployRelease,
+    completeRelease,
   } = useReleaseStore();
   const { issues } = useIssueStore();
   const { projects } = useProjectStore();
@@ -143,6 +145,16 @@ export function Releases() {
     rollbackRelease(selectedRelease.id);
   };
 
+  const handleDeploy = () => {
+    if (!selectedRelease) return;
+    deployRelease(selectedRelease.id);
+  };
+
+  const handleCompleteDeploy = () => {
+    if (!selectedRelease) return;
+    completeRelease(selectedRelease.id);
+  };
+
   const toggleIssueSelection = (issueId: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -155,6 +167,10 @@ export function Releases() {
   const getIssueTitle = (issueId: string) => {
     const issue = issues.find((i) => i.id === issueId);
     return issue?.title || '未知问题';
+  };
+
+  const getIssueById = (issueId: string) => {
+    return issues.find((i) => i.id === issueId);
   };
 
   const envColor = (env: EnvironmentType) => {
@@ -572,16 +588,20 @@ export function Releases() {
               <div>
                 <h4 className="text-sm font-medium text-white mb-2">关联需求</h4>
                 <div className="space-y-2">
-                  {selectedRelease.relatedIssues.map((issueId) => (
-                    <div
-                      key={issueId}
-                      className="flex items-center gap-3 px-3 py-2 bg-slate-800/50 rounded-lg"
-                    >
-                      <GitBranch className="w-4 h-4 text-blue-400" />
-                      <span className="text-sm text-slate-300 font-mono text-xs">{issueId}</span>
-                      <span className="text-sm text-slate-200">{getIssueTitle(issueId)}</span>
-                    </div>
-                  ))}
+                  {selectedRelease.relatedIssues.map((issueId) => {
+                    const issue = getIssueById(issueId);
+                    return (
+                      <div
+                        key={issueId}
+                        className="flex items-center gap-3 px-3 py-2 bg-slate-800/50 rounded-lg"
+                      >
+                        <GitBranch className="w-4 h-4 text-blue-400" />
+                        <span className="text-sm text-slate-300 font-mono text-xs">{issueId}</span>
+                        <span className="text-sm text-slate-200 flex-1">{getIssueTitle(issueId)}</span>
+                        {issue && <StatusBadge status={issue.status} size="sm" />}
+                      </div>
+                    );
+                  })}
                   {selectedRelease.relatedIssues.length === 0 && (
                     <p className="text-sm text-slate-500">暂无关联问题</p>
                   )}
@@ -655,9 +675,21 @@ export function Releases() {
                   </div>
                 )}
                 {selectedRelease.status === 'approved' && (
-                  <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors">
+                  <button
+                    onClick={handleDeploy}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
                     <Rocket className="w-4 h-4" />
                     开始部署
+                  </button>
+                )}
+                {selectedRelease.status === 'deploying' && (
+                  <button
+                    onClick={handleCompleteDeploy}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    完成部署
                   </button>
                 )}
               </div>

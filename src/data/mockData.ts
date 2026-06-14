@@ -73,6 +73,7 @@ export const pipelines: Pipeline[] = [
         name: '构建阶段',
         status: 'success',
         duration: 120,
+        enabled: true,
         steps: [
           { id: 'step-1-1', name: '代码检出', status: 'success', duration: 15, logs: generateLogs('代码检出') },
           { id: 'step-1-2', name: '依赖安装', status: 'success', duration: 45, logs: generateLogs('依赖安装') },
@@ -84,6 +85,7 @@ export const pipelines: Pipeline[] = [
         name: '测试阶段',
         status: 'success',
         duration: 180,
+        enabled: true,
         steps: [
           { id: 'step-2-1', name: '单元测试', status: 'success', duration: 60, logs: generateLogs('单元测试') },
           { id: 'step-2-2', name: '集成测试', status: 'success', duration: 90, logs: generateLogs('集成测试') },
@@ -95,6 +97,7 @@ export const pipelines: Pipeline[] = [
         name: '发布阶段',
         status: 'success',
         duration: 90,
+        enabled: true,
         steps: [
           { id: 'step-3-1', name: '镜像构建', status: 'success', duration: 40, logs: generateLogs('镜像构建') },
           { id: 'step-3-2', name: '部署到测试环境', status: 'success', duration: 50, logs: generateLogs('部署到测试环境') },
@@ -119,6 +122,7 @@ export const pipelines: Pipeline[] = [
         name: '构建阶段',
         status: 'success',
         duration: 100,
+        enabled: true,
         steps: [
           { id: 'step-1-1', name: '代码检出', status: 'success', duration: 12, logs: generateLogs('代码检出') },
           { id: 'step-1-2', name: '依赖安装', status: 'success', duration: 38, logs: generateLogs('依赖安装') },
@@ -130,6 +134,7 @@ export const pipelines: Pipeline[] = [
         name: '测试阶段',
         status: 'running',
         duration: 0,
+        enabled: true,
         steps: [
           { id: 'step-2-1', name: '单元测试', status: 'success', duration: 45, logs: generateLogs('单元测试') },
           { id: 'step-2-2', name: '集成测试', status: 'running', duration: 0, logs: generateLogs('集成测试').slice(0, 4) },
@@ -141,6 +146,7 @@ export const pipelines: Pipeline[] = [
         name: '发布阶段',
         status: 'pending',
         duration: 0,
+        enabled: true,
         steps: [
           { id: 'step-3-1', name: '镜像构建', status: 'pending', duration: 0, logs: [] },
           { id: 'step-3-2', name: '部署到测试环境', status: 'pending', duration: 0, logs: [] },
@@ -165,6 +171,7 @@ export const pipelines: Pipeline[] = [
         name: '构建阶段',
         status: 'success',
         duration: 90,
+        enabled: true,
         steps: [
           { id: 'step-1-1', name: '代码检出', status: 'success', duration: 10, logs: generateLogs('代码检出') },
           { id: 'step-1-2', name: '依赖安装', status: 'success', duration: 35, logs: generateLogs('依赖安装') },
@@ -176,6 +183,7 @@ export const pipelines: Pipeline[] = [
         name: '测试阶段',
         status: 'failed',
         duration: 75,
+        enabled: true,
         steps: [
           { id: 'step-2-1', name: '单元测试', status: 'success', duration: 30, logs: generateLogs('单元测试') },
           { id: 'step-2-2', name: '集成测试', status: 'failed', duration: 45, logs: [
@@ -193,6 +201,7 @@ export const pipelines: Pipeline[] = [
         name: '发布阶段',
         status: 'pending',
         duration: 0,
+        enabled: true,
         steps: [
           { id: 'step-3-1', name: '镜像构建', status: 'pending', duration: 0, logs: [] },
           { id: 'step-3-2', name: '部署到测试环境', status: 'pending', duration: 0, logs: [] },
@@ -217,6 +226,7 @@ export const pipelines: Pipeline[] = [
         name: '构建阶段',
         status: 'pending',
         duration: 0,
+        enabled: true,
         steps: [
           { id: 'step-1-1', name: '代码检出', status: 'pending', duration: 0, logs: [] },
           { id: 'step-1-2', name: '依赖安装', status: 'pending', duration: 0, logs: [] },
@@ -228,6 +238,7 @@ export const pipelines: Pipeline[] = [
         name: '测试阶段',
         status: 'pending',
         duration: 0,
+        enabled: true,
         steps: [
           { id: 'step-2-1', name: '单元测试', status: 'pending', duration: 0, logs: [] },
           { id: 'step-2-2', name: '集成测试', status: 'pending', duration: 0, logs: [] },
@@ -238,6 +249,7 @@ export const pipelines: Pipeline[] = [
         name: '发布阶段',
         status: 'pending',
         duration: 0,
+        enabled: true,
         steps: [
           { id: 'step-3-1', name: '镜像构建', status: 'pending', duration: 0, logs: [] },
           { id: 'step-3-2', name: '部署到测试环境', status: 'pending', duration: 0, logs: [] },

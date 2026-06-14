@@ -19,6 +19,7 @@ import {
   MapPin,
   X,
   Save,
+  Pencil,
 } from 'lucide-react';
 import { useEnvironmentStore } from '../store/useEnvironmentStore';
 import { StatusBadge } from '../components/StatusBadge';
@@ -35,6 +36,7 @@ export function Environments() {
     setShowEditModal,
     setEditingEnv,
     updateEnvironment,
+    getAuditLogsByEnvId,
   } = useEnvironmentStore();
 
   const [editForm, setEditForm] = useState({
@@ -86,6 +88,8 @@ export function Environments() {
       cpuUsage: editForm.cpuUsage,
       memoryUsage: editForm.memoryUsage,
       status: editForm.status,
+      lastModifiedBy: '当前用户',
+      lastModifiedAt: new Date().toISOString(),
     });
 
     setShowEditModal(false);
@@ -140,6 +144,12 @@ export function Environments() {
     return qps[type];
   };
 
+  const auditLogsByEnvId = selectedEnv
+    ? getAuditLogsByEnvId(selectedEnv.id)
+        .sort((a, b) => new Date(b.modifiedAt).getTime() - new Date(a.modifiedAt).getTime())
+        .slice(0, 5)
+    : [];
+
   return (
     <div className="animate-fade-in">
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -189,13 +199,24 @@ export function Environments() {
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-white/60">最后部署</span>
                 <span className="text-xs text-white/80">
                   {relativeTime(env.deployHistory[0]?.deployedAt || '')}
                 </span>
               </div>
+              {env.lastModifiedBy && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/60 flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    最近修改
+                  </span>
+                  <span className="text-xs text-white/80">
+                    {env.lastModifiedBy} · {relativeTime(env.lastModifiedAt || '')}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -367,6 +388,40 @@ export function Environments() {
               </div>
               <p className="text-sm text-white font-medium">{getQps(selectedEnv.type)}</p>
               <p className="text-xs text-slate-500">峰值</p>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-5 border-t border-slate-800">
+            <div className="flex items-center gap-3 mb-4">
+              <Clock className="w-5 h-5 text-blue-400" />
+              <h3 className="text-base font-semibold text-white">最近修改记录</h3>
+            </div>
+            <div className="space-y-2">
+              {auditLogsByEnvId.length > 0 ? (
+                auditLogsByEnvId.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                      <Pencil className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white">
+                        <span className="font-medium">{log.modifiedBy}</span>{' '}
+                        修改了【<span className="text-blue-400">{log.field}</span>】:{' '}
+                        <span className="text-slate-400 line-through">{log.oldValue}</span>{' '}
+                        → <span className="text-emerald-400">{log.newValue}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs text-slate-500 flex-shrink-0">
+                      {relativeTime(log.modifiedAt)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-6 text-slate-500 text-sm">暂无修改记录</div>
+              )}
             </div>
           </div>
         </div>

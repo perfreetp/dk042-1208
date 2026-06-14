@@ -37,6 +37,7 @@ export interface PipelineStage {
   status: StatusType;
   steps: PipelineStep[];
   duration: number;
+  enabled: boolean;
 }
 
 export interface Pipeline {
@@ -79,6 +80,16 @@ export interface DeployRecord {
   status: 'success' | 'failed';
 }
 
+export interface EnvAuditLog {
+  id: string;
+  envId: string;
+  field: string;
+  oldValue: string;
+  newValue: string;
+  modifiedBy: string;
+  modifiedAt: string;
+}
+
 export interface Environment {
   id: string;
   name: string;
@@ -90,6 +101,8 @@ export interface Environment {
   deployHistory: DeployRecord[];
   instances: number;
   region: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
 }
 
 export interface Issue {

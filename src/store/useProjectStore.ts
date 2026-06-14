@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Project } from '../types';
 import { projects as mockProjects } from '../data/mockData';
+import { saveToStorage, loadFromStorage } from '../lib/persist';
 
 interface ProjectState {
   projects: Project[];
@@ -11,8 +12,10 @@ interface ProjectState {
   getActiveProjects: () => Project[];
 }
 
+const initialProjects = loadFromStorage<Project[]>('projects', mockProjects);
+
 export const useProjectStore = create<ProjectState>((set, get) => ({
-  projects: mockProjects,
+  projects: initialProjects,
   showCreateModal: false,
 
   setShowCreateModal: (show) => set({ showCreateModal: show }),
@@ -24,7 +27,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       createdAt: new Date().toISOString(),
       status: 'active',
     };
-    set((state) => ({ projects: [newProject, ...state.projects] }));
+    set((state) => {
+      const newProjects = [newProject, ...state.projects];
+      saveToStorage('projects', newProjects);
+      return { projects: newProjects };
+    });
   },
 
   getProjectById: (id) => {
